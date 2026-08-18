@@ -1,16 +1,11 @@
 /**
- * A failing provider must never look like "no results found".
+ * A failing source must never look like "no results found".
  *
  * This is the bug class that bit hardest during development: a network error or
  * a rejected key returned an empty array, the UI rendered "nothing found", and
  * nothing anywhere said the search had actually failed.
  */
-import {
-  search,
-  ProviderBlockedError,
-  ProviderUnreachableError,
-  ProviderNotConfiguredError,
-} from "../lib/providers.js";
+import { searchAllChannels } from "../lib/channels.js";
 
 let pass = 0,
   fail = 0;
@@ -20,60 +15,67 @@ const check = (name, got, want) => {
   ok ? pass++ : fail++;
 };
 
-function stubStatus(status, body = { results: [] }) {
-  globalThis.fetch = async () => ({
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-  });
+const OK_HN = {
+  hits: [{ objectID: "1", title: "t", points: 5, num_comments: 1, created_at: "2026-08-01T00:00:00Z", url: "https://a.com" }],
+};
+
+/** Everything healthy except the one source under test. */
+function stub({ failHost, status, throwNetwork = false } = {}) {
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const isTarget = failHost && u.includes(failHost);
+
+    if (isTarget && throwNetwork) throw new TypeError("fetch failed");
+    if (isTarget) return { ok: false, status, json: async () => ({}), text: async () => "quota" };
+
+    if (u.includes("hn.algolia.com")) return { ok: true, status: 200, json: async () => OK_HN };
+    if (u.includes("api.github.com")) return { ok: true, status: 200, json: async () => ({ items: [] }) };
+    if (u.includes("youtube/v3/search")) return { ok: true, status: 200, json: async () => ({ items: [] }) };
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
 }
 
-// Returns "blocked" | "unconfigured" | "unreachable" | "empty" | "results" | "error"
-async function outcome() {
-  try {
-    const r = await search("anything", { domains: [] });
-    return r.length ? "results" : "empty";
-  } catch (e) {
-    if (e instanceof ProviderNotConfiguredError) return "unconfigured";
-    if (e instanceof ProviderBlockedError) return "blocked";
-    if (e instanceof ProviderUnreachableError) return "unreachable";
-    return "error";
-  }
+process.env.YOUTUBE_API_KEY = "test-key";
+
+/** Returns "error" | "unconfigured" | "empty" | "results" for one channel. */
+async function outcome(channelId) {
+  const channels = await searchAllChannels("anything");
+  const c = channels.find((x) => x.id === channelId);
+  if (c.error) return "error";
+  if (c.unconfigured) return "unconfigured";
+  return c.results.length ? "results" : "empty";
 }
 
-delete process.env.TAVILY_API_KEY;
-stubStatus(200);
-check("missing key -> unconfigured, NOT empty", await outcome(), "unconfigured");
+stub({ failHost: "hn.algolia.com", status: 429 });
+check("HN rate limited -> error, NOT empty", await outcome("hackernews"), "error");
 
-process.env.TAVILY_API_KEY = "test-key";
+stub({ failHost: "hn.algolia.com", throwNetwork: true });
+check("HN network failure -> error, NOT empty", await outcome("hackernews"), "error");
 
-stubStatus(401);
-check("401 bad key -> blocked", await outcome(), "blocked");
+stub({ failHost: "api.github.com", status: 403 });
+check("GitHub rate limited -> error, NOT empty", await outcome("github"), "error");
 
-stubStatus(403);
-check("403 forbidden -> blocked", await outcome(), "blocked");
+stub({ failHost: "api.github.com", throwNetwork: true });
+check("GitHub network failure -> error, NOT empty", await outcome("github"), "error");
 
-stubStatus(429);
-check("429 rate limited -> blocked", await outcome(), "blocked");
+stub({ failHost: "googleapis.com", status: 403 });
+check("YouTube quota exhausted -> error, NOT empty", await outcome("youtube"), "error");
 
-stubStatus(432);
-check("432 quota exhausted -> blocked", await outcome(), "blocked");
+// A source that answers normally with nothing to say is genuinely empty, and
+// must not be reported as broken.
+stub();
+check("GitHub with no matches -> empty, NOT an error", await outcome("github"), "empty");
+check("HN with matches -> results", await outcome("hackernews"), "results");
 
-globalThis.fetch = async () => {
-  throw new TypeError("fetch failed");
-};
-check("network failure -> unreachable, NOT empty", await outcome(), "unreachable");
+// Missing credentials are "not set up", which is neither empty nor broken.
+delete process.env.YOUTUBE_API_KEY;
+stub();
+check("YouTube without a key -> unconfigured", await outcome("youtube"), "unconfigured");
 
-globalThis.fetch = async () => {
-  throw new Error("operation aborted due to timeout");
-};
-check("timeout -> unreachable, NOT empty", await outcome(), "unreachable");
-
-stubStatus(200, { results: [] });
-check("200 with no matches -> empty, NOT an error", await outcome(), "empty");
-
-stubStatus(200, { results: [{ title: "t", url: "https://a.com/x", content: "s" }] });
-check("200 with matches -> results", await outcome(), "results");
+// One source failing must not affect the others.
+process.env.YOUTUBE_API_KEY = "test-key";
+stub({ failHost: "api.github.com", status: 403 });
+check("a failing source leaves the others working", await outcome("hackernews"), "results");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,9 +1,9 @@
 # Relevant Search
 
-One query &rarr; results from the **web, Twitter/X, Instagram and LinkedIn**, side by
-side in one place.
+One query &rarr; what **Hacker News, YouTube and GitHub** are saying, ranked by real
+engagement.
 
-Built with Next.js.
+Built with Next.js. Two of the three channels work with no credentials at all.
 
 ---
 
@@ -11,28 +11,40 @@ Built with Next.js.
 
 ```bash
 npm install
-cp .env.local.example .env.local   # add your Tavily key
 npm run dev
 ```
 
-Open <http://localhost:3000>.
+Open <http://localhost:3000>. Hacker News and GitHub work immediately &mdash; no keys.
 
 ```bash
-npm test    # 16 tests, no network required
+npm test    # 19 tests, no network required
 ```
 
 ---
 
 ## What it does
 
-- **Four platforms, one search.** Web, X, Instagram and LinkedIn, fetched in parallel
-  and split into tabs.
+- **Three sources, one query**, fetched in parallel and split into tabs.
+- **Real engagement data.** Upvotes, points, views, stars &mdash; actual numbers from
+  each platform, not a relevance score someone else invented.
 - **AI suggestions as you type.** Type `how do i make that bread with the sour taste`
   and pick from `sourdough bread recipe`, `how to make sour bread`, and so on. You
   choose &mdash; nothing is rewritten behind your back.
-- **Relevant or Recent.** A toggle that restricts results to the past month, which
-  pushes past big evergreen pages to actual recent posts.
-- **Recent searches.** Your last 6 queries, stored in the browser.
+- **Recent searches.** Your last 6 queries, kept in the browser.
+
+---
+
+## The three channels
+
+| Channel | Engagement shown | Sorted by | Credentials |
+| --- | --- | --- | --- |
+| **Hacker News** | points, comments | newest first | none |
+| **GitHub** | stars, forks | most stars | none (token optional) |
+| **YouTube** | views, likes, comments | newest first | API key |
+
+GitHub sorts by stars rather than date on purpose: `pushed_at` is the only timestamp
+it offers, and every actively-maintained repo was pushed today, so a date sort would
+order results arbitrarily. That source returns no date at all.
 
 ---
 
@@ -40,78 +52,81 @@ npm test    # 16 tests, no network required
 
 ```
 query
-  -> 4 channels fetched in parallel                (lib/channels.js)
-       web  |  x.com  |  instagram.com  |  linkedin.com
-  -> results deduped and host-verified             (lib/channels.js)
-  -> UI: one tab per channel                       (app/page.js)
+  -> 3 sources fetched in parallel, each via its own API   (lib/channels.js)
+  -> deduped, then sorted by that channel's basis          (lib/channels.js)
+  -> UI: one tab per channel                               (app/page.js)
 
 typing (debounced, separate path)
-  -> Groq suggests 5 queries                       (lib/ai.js)
+  -> Groq suggests 5 queries                               (lib/ai.js)
 ```
 
 | File | Role |
 | --- | --- |
-| `lib/providers.js` | Tavily calls, normalising and error classification |
-| `lib/channels.js` | The 4 channels, parallel fan-out, dedupe, host check |
+| `lib/sources/*.js` | One file per platform: fetch, normalise, classify errors |
+| `lib/channels.js` | Parallel fan-out, dedupe, per-channel sort |
 | `lib/ai.js` | Groq: query suggestions |
 | `lib/cache.js` | 10-minute TTL cache so repeats don't burn quota |
-| `app/api/search/route.js` | `/api/search?q=&range=` |
+| `app/api/search/route.js` | `/api/search?q=` |
 | `app/api/suggest/route.js` | `/api/suggest?q=` |
 | `app/page.js` | The whole UI |
 
+Every source returns the same shape, so adding a fourth is one file plus one entry in
+`CHANNELS`:
+
+```js
+{ title, url, snippet, author, date, engagement, stats: [{ label, value }] }
+```
+
 ---
 
-## Why there are no official Twitter / Instagram / LinkedIn APIs here
+## Optional keys
 
-This is the part worth understanding, because it drives the whole design.
+None are required. Each unlocks one channel.
 
-| Platform | Free read API? | Reality |
+**YouTube** &mdash; [console.cloud.google.com](https://console.cloud.google.com), enable
+"YouTube Data API v3", create an API key. No billing account needed.
+Quota: **100 searches/day**.
+
+**GitHub** (optional) &mdash;
+[github.com/settings/tokens](https://github.com/settings/tokens), **no scopes ticked**.
+Raises 10 &rarr; 30 searches/min. Worth setting before deploying: serverless
+platforms share egress IPs, so the unauthenticated limit is shared with strangers.
+
+**Groq** (optional) &mdash; [console.groq.com](https://console.groq.com). Powers the
+suggestions dropdown. Groq rotates its free model lineup, so run `npm run models` to
+see what your key can actually access.
+
+---
+
+## Why these three platforms
+
+Because they are the ones that still give engagement data away.
+
+| Platform | Engagement data | Verdict |
 | --- | --- | --- |
-| **Twitter / X** | No | The free tier is write-only. Reading or searching tweets starts around **$200/month**. |
-| **Instagram** | No | No public search API. The Graph API only reads *your own* business account. |
-| **LinkedIn** | No | Content APIs are partner-only. Scraping is blocked hard and breaches their terms. |
+| Hacker News, GitHub | free, no key | **in** |
+| YouTube | free, needs registration | **in** |
+| **X / Twitter** | ~$200/month | out |
+| **Reddit** | free, but needs OAuth registration | out (removed) |
+| **Instagram, LinkedIn** | no free API at all | out |
+| **Open web** | no such concept exists | out |
 
-So instead of scraping the platforms, this app asks Tavily for results **restricted to
-each domain**. It returns the same public posts and profiles a person would find by
-searching that platform on Google &mdash; no scraping, no terms-of-service problem, no
-paid tier.
-
-`lib/channels.js` then re-checks every result's hostname, so a stray off-platform
-result can never be mislabelled as coming from a platform. The test suite pins this,
-including rejecting lookalike domains like `x.com.evil.net`.
-
----
-
-## Keys
-
-| Key | Required? | Free tier | What it does |
-| --- | --- | --- | --- |
-| `TAVILY_API_KEY` | **Yes** | 1000 searches/mo | All search results |
-| `GROQ_API_KEY` | No | generous | The suggestions dropdown |
-
-**Watch your Tavily quota.** Each app search costs **4 requests** &mdash; one per
-channel &mdash; so 1000/month is roughly **250 searches**. The 10-minute cache in
-`lib/cache.js` softens repeats.
-
-Groq is optional and off the critical path: if the key is missing or rate-limited,
-suggestions quietly stop appearing and search keeps working normally.
-
-Groq rotates its free model lineup, so a hardcoded model name will eventually 404.
-Run `npm run models` to list what your key can actually access.
+X, Instagram and LinkedIn were all built and then removed. Their content is reachable
+through a search index, but it arrives with no upvotes, likes or view counts &mdash;
+which defeats the point of ranking by engagement. Browser-cookie and paid-scraper
+workarounds exist, but neither survives deployment to a public URL.
 
 ---
 
 ## Known limits
 
-- **LinkedIn `/in/` profile URLs are login walls.** LinkedIn returns HTTP 999 with an
-  authwall for logged-out visitors, rendered in the visitor's regional language. The
-  app sorts those below real content, flags them `login required`, and pins
-  `?locale=en_US`. Posts, articles and learning pages open fine.
-- **"Recent" thins out the Web channel.** Social platforms produce fresh content
-  constantly; general web pages on a topic are mostly older guides. Expect the Web tab
-  to shrink noticeably in Recent mode while the social tabs hold up.
-- **No dates on results.** Tavily does not return `published_date` on general search,
-  so Recent is a *filter*, not a sort, and cards cannot show how old something is.
+- **Coverage is developer-heavy.** Hacker News and GitHub are technical by nature.
+  "next.js" and "ai agents" return excellent results; "makeup tutorials" will not.
+  YouTube is the broad channel.
+- **A source failing is shown, never hidden.** A rate limit, a bad key or a network
+  outage produces a message on that tab; the other three keep working. Tests pin the
+  difference between "no results" and "this broke", because conflating them hid real
+  outages during development.
 
 ---
 

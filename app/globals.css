@@ -601,49 +601,6 @@ h1 {
 }
 
 /* ============================================================
-   Freshness toggle
-   ============================================================ */
-.ranges {
-  display: flex;
-  justify-content: center;
-  gap: 3px;
-  width: fit-content;
-  margin: 16px auto 0;
-  padding: 3px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-}
-
-.range {
-  padding: 6px 15px;
-  font-size: 0.82rem;
-  font-weight: 550;
-  font-family: inherit;
-  color: var(--muted);
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: color 0.16s ease, background 0.16s ease;
-}
-
-.range:hover:not([data-active="true"]):not(:disabled) {
-  color: var(--text);
-}
-
-.range[data-active="true"] {
-  color: var(--text);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.range:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ============================================================
    Search suggestions
    ============================================================ */
 .suggest {
@@ -695,4 +652,28 @@ h1 {
 
 .suggest button[data-active="true"] svg {
   color: var(--accent);
+}
+
+/* Engagement stats + recency on result cards */
+.when {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.stats b {
+  font-weight: 620;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }

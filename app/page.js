@@ -7,10 +7,9 @@ const RECENT_MAX = 6;
 
 /* Per-channel accent, used for the active tab and card hover rail. */
 const TINT = {
-  web: "#0ea5e9",
-  twitter: "#71717a",
-  instagram: "#d6249f",
-  linkedin: "#0a66c2",
+  hackernews: "#f26522",
+  youtube: "#e0284a",
+  github: "#7c5cd6",
 };
 
 /* Shown only until the user has a search history of their own. */
@@ -21,26 +20,12 @@ const EXAMPLES = [
   "Ai engines",
 ];
 
-/**
- * "" ranks purely by relevance, which drifts toward big evergreen pages.
- * A time window pushes past those to actual recent posts, at the cost of
- * returning fewer results on quiet topics.
- *
- * "Recent" maps to a month rather than a week: a week is thin enough to come
- * back empty on niche queries, which reads as a broken app.
- */
-const RANGES = [
-  { id: "", label: "Relevant" },
-  { id: "month", label: "Recent" },
-];
-
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState("web");
-  const [range, setRange] = useState("");
+  const [tab, setTab] = useState("hackernews");
   const [recent, setRecent] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [sugOpen, setSugOpen] = useState(false);
@@ -132,34 +117,25 @@ export default function Home() {
     } catch {}
   }
 
-  async function run(q, r, keepTab = false) {
+  async function run(q) {
     const text = (q ?? query).trim();
-    const useRange = r ?? range;
     if (!text || loading) return;
 
     setQuery(text);
-    setRange(useRange);
     setLoading(true);
     setError(null);
     setData(null);
 
     try {
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(text)}` +
-          (useRange ? `&range=${useRange}` : ""),
-      );
+      const res = await fetch(`/api/search?q=${encodeURIComponent(text)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Search failed");
 
       setData(json);
       // Only remember searches that actually returned something.
       if (json.meta.totalResults > 0) remember(text);
-      // Toggling freshness re-runs the search, but the user is still reading the
-      // same channel - yanking them back to Web would lose their place.
-      if (!keepTab) {
-        const firstFull = json.channels.find((c) => c.results.length > 0);
-        setTab(firstFull ? firstFull.id : "web");
-      }
+      const firstFull = json.channels.find((c) => c.results.length > 0);
+      setTab(firstFull ? firstFull.id : "hackernews");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -175,7 +151,7 @@ export default function Home() {
       <header className="hero">
         <h1>Searching..</h1>
         <p className="tagline">
-          Search the web, X, Instagram and LinkedIn — all from one query.
+          What Hacker News, YouTube and GitHub are talking about right now.
         </p>
       </header>
 
@@ -240,24 +216,6 @@ export default function Home() {
         )}
       </form>
 
-      <div className="ranges" role="group" aria-label="Result freshness">
-        {RANGES.map((r) => (
-          <button
-            key={r.id}
-            className="range"
-            data-active={r.id === range}
-            disabled={loading}
-            onClick={() => {
-              setRange(r.id);
-              // Only re-search if there is something to re-search.
-              if (query.trim() && (data || error)) run(query, r.id, true);
-            }}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
-
       {!data && !loading && !error && (
         <>
           <p className="chips-label">
@@ -317,12 +275,25 @@ export default function Home() {
             ) : (
               <div className="empty">
                 <Icon.Empty />
-                <strong>Nothing found on {active?.label}</strong>
-                <span>
-                  {active?.id === "linkedin"
-                    ? "LinkedIn blocks most crawlers, so this channel is often thin."
-                    : "Try rephrasing, or check another tab."}
-                </span>
+                {active?.unconfigured ? (
+                  <>
+                    <strong>{active.label} is not set up</strong>
+                    <span>
+                      Add a free YOUTUBE_API_KEY to .env.local and restart to enable
+                      this channel.
+                    </span>
+                  </>
+                ) : active?.error ? (
+                  <>
+                    <strong>{active.label} could not be searched</strong>
+                    <span>{active.error}</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>Nothing found on {active?.label}</strong>
+                    <span>Try rephrasing, or check another tab.</span>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -330,7 +301,6 @@ export default function Home() {
           <div className="foot">
             <em>{data.meta.totalResults} results</em>
             <em>{(data.meta.elapsedMs / 1000).toFixed(1)}s</em>
-            <em>via {data.meta.provider}</em>
             {data.meta.cached && <em>cached</em>}
           </div>
         </>
@@ -365,11 +335,20 @@ function Card({ result, tint, index }) {
             e.currentTarget.style.visibility = "hidden";
           }}
         />
-        <span className="host">{host}</span>
-        {result.authwalled && <span className="pill">login required</span>}
+        <span className="host">{result.author || host}</span>
+        {result.date && <span className="when">{ago(result.date)}</span>}
       </div>
       <h3>{result.title}</h3>
       {result.snippet && <p>{result.snippet}</p>}
+      {result.stats?.length > 0 && (
+        <div className="stats">
+          {result.stats.map((s) => (
+            <span key={s.label}>
+              <b>{typeof s.value === "number" ? compact(s.value) : s.value}</b> {s.label}
+            </span>
+          ))}
+        </div>
+      )}
     </a>
   );
 }
@@ -392,10 +371,27 @@ function Skeletons() {
 }
 
 function ChannelIcon({ id }) {
-  if (id === "twitter") return <Icon.X />;
-  if (id === "instagram") return <Icon.Instagram />;
-  if (id === "linkedin") return <Icon.LinkedIn />;
+  if (id === "hackernews") return <Icon.HN />;
+  if (id === "youtube") return <Icon.YouTube />;
+  if (id === "github") return <Icon.GitHub />;
   return <Icon.Globe />;
+}
+
+/* 12345 -> "12.3K" so counts stay one glanceable token. */
+function compact(n) {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return (n / 1000).toFixed(n < 10_000 ? 1 : 0) + "K";
+  return (n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0) + "M";
+}
+
+function ago(iso) {
+  const days = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  if (Number.isNaN(days)) return "";
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
 }
 
 /* Inline SVGs — no icon library, no network request. */
@@ -469,28 +465,19 @@ const Icon = {
       <path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" />
     </svg>
   ),
-  X: () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.21-6.82-5.96 6.82H1.68l7.73-8.84L1.25 2.25h6.83l4.71 6.23zm-1.16 17.52h1.83L7.08 4.13H5.11z" />
-    </svg>
-  ),
-  Instagram: () => (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.2" cy="6.8" r="1.2" fill="currentColor" stroke="none" />
-    </svg>
-  ),
-  LinkedIn: () => (
+  HN: () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM10 9h3.8v1.7h.05c.53-.95 1.83-1.95 3.76-1.95 4.02 0 4.76 2.5 4.76 5.76V21h-4v-5.7c0-1.36-.03-3.11-1.95-3.11-1.96 0-2.26 1.48-2.26 3.01V21h-4z" />
+      <path d="M3 3h18v18H3zm9.6 10.6L16.5 7h-1.9l-2.6 4.7L9.4 7H7.5l3.9 6.6V17h1.2z" />
+    </svg>
+  ),
+  YouTube: () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21.6 7.2a2.5 2.5 0 0 0-1.75-1.77C18.25 5 12 5 12 5s-6.25 0-7.85.43A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.75 1.77C5.75 19 12 19 12 19s6.25 0 7.85-.43a2.5 2.5 0 0 0 1.75-1.77A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15.2V8.8l5.2 3.2z" />
+    </svg>
+  ),
+  GitHub: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z" />
     </svg>
   ),
 };
