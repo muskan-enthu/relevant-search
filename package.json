@@ -1,0 +1,17 @@
+{
+  "name": "relevant-search",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "node tests/filtering.test.mjs && node tests/blocking.test.mjs",
+    "models": "node -e \"fetch('https://api.groq.com/openai/v1/models',{headers:{Authorization:`Bearer ${process.env.GROQ_API_KEY}`}}).then(r=>r.json()).then(j=>console.log((j.data||[]).map(m=>m.id).sort().join(String.fromCharCode(10))))\""
+  },
+  "dependencies": {
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}
