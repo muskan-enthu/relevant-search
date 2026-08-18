@@ -173,7 +173,7 @@ export default function Home() {
   return (
     <main className="wrap">
       <header className="hero">
-        <h1>Relevant Search</h1>
+        <h1>Searching..</h1>
         <p className="tagline">
           Search the web, X, Instagram and LinkedIn — all from one query.
         </p>
