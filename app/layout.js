@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Relevant Search",
-  description: "One query, relevant results from the web, X, Instagram and LinkedIn.",
+  title: "Pulse",
+  description: "One query, ranked by what people are actually engaging with.",
 };
 
 export default function RootLayout({ children }) {

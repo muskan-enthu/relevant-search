@@ -38,9 +38,9 @@ npm test    # 19 tests, no network required
 
 | Channel | Engagement shown | Sorted by | Credentials |
 | --- | --- | --- | --- |
-| **Hacker News** | points, comments | newest first | none |
+| **Hacker News** | points, comments | most points | none |
 | **GitHub** | stars, forks | most stars | none (token optional) |
-| **YouTube** | views, likes, comments | newest first | API key |
+| **YouTube** | views, likes, comments | most views | API key |
 
 GitHub sorts by stars rather than date on purpose: `pushed_at` is the only timestamp
 it offers, and every actively-maintained repo was pushed today, so a date sort would

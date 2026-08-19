@@ -174,16 +174,24 @@ export default function Home() {
   const active = visible.find((c) => c.id === tab);
   const tint = TINT[tab] || undefined;
 
-  return (
-    <main className="wrap">
-      <header className="hero">
-        <h1>Searching..</h1>
-        <p className="tagline">
-          One query, ranked by what people are actually engaging with.
-        </p>
-      </header>
+  const working = Boolean(data || loading || error);
 
-      <form
+  return (
+    <main className="app" data-working={working}>
+      <header className="topbar">
+        <div className="brand">
+          <span className="mark">
+            <Icon.Mark />
+          </span>
+          <div>
+            <h1>Pulse</h1>
+            <p className="tagline">
+              One query, ranked by what people are actually engaging with.
+            </p>
+          </div>
+        </div>
+
+        <form
         className="searchbar"
         ref={formRef}
         onSubmit={(e) => {
@@ -211,7 +219,7 @@ export default function Home() {
           autoFocus
         />
         <button
-          className="btn-search"
+          className="btn-go"
           type="submit"
           disabled={loading || !query.trim()}
         >
@@ -243,9 +251,10 @@ export default function Home() {
             ))}
           </ul>
         )}
-      </form>
+        </form>
+      </header>
 
-      {!data && !loading && !error && (
+      {!working && (
         <>
           <p className="chips-label">
             {recent.length ? "Recent searches" : "Try one of these"}
@@ -265,17 +274,18 @@ export default function Home() {
         </>
       )}
 
-      {loading && <Skeletons />}
+      <div className="stage">
+        {loading && <Skeletons />}
 
-      {error && (
-        <div className="alert">
-          <Icon.Alert />
-          <div>
-            <strong>Search could not complete</strong>
-            <span>{error}</span>
+        {error && (
+          <div className="alert">
+            <Icon.Alert />
+            <div>
+              <strong>Search could not complete</strong>
+              <span>{error}</span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {data && (
         <>
@@ -299,7 +309,7 @@ export default function Home() {
           <div className="results">
             {active?.results.length ? (
               active.results.map((r, i) => (
-                <Card
+                <Row
                   key={r.url + i}
                   result={r}
                   tint={tint}
@@ -328,19 +338,20 @@ export default function Home() {
           </div>
 
           <div className="foot">
-            <em>{data.meta.totalResults} results</em>
-            <em>{(data.meta.elapsedMs / 1000).toFixed(1)}s</em>
-            {data.meta.cached && <em>cached</em>}
+            <span>{data.meta.totalResults} results</span>
+            <span>{(data.meta.elapsedMs / 1000).toFixed(1)}s</span>
+            {data.meta.cached && <span>cached</span>}
           </div>
         </>
       )}
+      </div>
     </main>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-function Card({ result, tint, index, showDate }) {
+function Row({ result, tint, index, showDate }) {
   let host = result.url;
   try {
     host = new URL(result.url).host.replace(/^www\./, "");
@@ -348,13 +359,20 @@ function Card({ result, tint, index, showDate }) {
 
   return (
     <a
-      className="card"
+      className="row"
       href={result.url}
       target="_blank"
       rel="noopener noreferrer"
-      style={{ "--tint": tint, animationDelay: `${Math.min(index, 8) * 35}ms` }}
+      style={{ "--tint": tint, animationDelay: `${Math.min(index, 8) * 30}ms` }}
     >
-      <div className="card-top">
+      <span className="rank">{index + 1}</span>
+
+      <h3>{result.title}</h3>
+      {result.snippet && <p>{result.snippet}</p>}
+
+      {/* Source and every metric on a single line - separate pills per metric
+          cost a whole row of height each, for three short numbers. */}
+      <div className="byline">
         <img
           className="fav"
           src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
@@ -364,37 +382,38 @@ function Card({ result, tint, index, showDate }) {
             e.currentTarget.style.visibility = "hidden";
           }}
         />
-        <span className="host">{result.author || host}</span>
-        {showDate && ago(result.date) && (
-          <span className="when">{ago(result.date)}</span>
-        )}
+        <span className="who">{result.author || host}</span>
+
+        {result.stats?.length > 0 && <span className="sep" />}
+
+        {result.stats?.map((s) => (
+          <span className="metric" key={s.label}>
+            <b>{typeof s.value === "number" ? compact(s.value) : s.value}</b>
+            {s.label}
+          </span>
+        ))}
+
+        {showDate && ago(result.date) && <span>{ago(result.date)}</span>}
       </div>
-      <h3>{result.title}</h3>
-      {result.snippet && <p>{result.snippet}</p>}
-      {result.stats?.length > 0 && (
-        <div className="stats">
-          {result.stats.map((s) => (
-            <span key={s.label}>
-              <b>{typeof s.value === "number" ? compact(s.value) : s.value}</b> {s.label}
-            </span>
-          ))}
-        </div>
-      )}
     </a>
   );
 }
 
 function Skeletons() {
+  const widths = ["32%", "78%", "96%"];
   return (
-    <div className="results" style={{ marginTop: 30 }}>
-      {[0, 1, 2, 3].map((i) => (
-        <div className="skel-card" key={i}>
-          <div className="skel" style={{ width: "28%", marginBottom: 12 }} />
-          <div
-            className="skel"
-            style={{ width: "72%", height: 15, marginBottom: 10 }}
-          />
-          <div className="skel" style={{ width: "94%" }} />
+    <div className="results">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div className="skel-row" key={i}>
+          <div />
+          <div>
+            <div className="skel" style={{ width: widths[0], marginBottom: 10 }} />
+            <div
+              className="skel"
+              style={{ width: widths[1], height: 14, marginBottom: 10 }}
+            />
+            <div className="skel" style={{ width: widths[2] }} />
+          </div>
         </div>
       ))}
     </div>
@@ -430,6 +449,11 @@ function ago(iso) {
 
 /* Inline SVGs — no icon library, no network request. */
 const Icon = {
+  Mark: () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12h4l3-8 4 16 3-8h6" />
+    </svg>
+  ),
   Search: () => (
     <svg
       width="18"

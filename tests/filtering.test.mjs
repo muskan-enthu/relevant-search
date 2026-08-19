@@ -36,8 +36,8 @@ function stubNetwork({ githubFails = false } = {}) {
         status: 200,
         json: async () => ({
           items: [
-            { id: "abc", snippet: { title: "small", publishedAt: "2026-08-01T00:00:00Z" }, statistics: { viewCount: "100" } },
-            { id: "def", snippet: { title: "huge", publishedAt: "2026-08-02T00:00:00Z" }, statistics: { viewCount: "999999" } },
+            { id: "abc", snippet: { title: "small", publishedAt: "2026-08-05T00:00:00Z" }, statistics: { viewCount: "100" } },
+            { id: "def", snippet: { title: "huge", publishedAt: "2026-08-01T00:00:00Z" }, statistics: { viewCount: "999999" } },
           ],
         }),
       };
@@ -77,7 +77,7 @@ const by = Object.fromEntries(channels.map((c) => [c.id, c]));
 
 check("channels declare their ranking basis", Object.fromEntries(channels.map((c) => [c.id, c.ranked])), {
   hackernews: "engagement",
-  youtube: "date",
+  youtube: "engagement",
   github: "engagement",
 });
 
@@ -99,9 +99,9 @@ check(
   "https://news.ycombinator.com/item?id=3"
 );
 
-// Fixture dates: small=Aug 1, huge=Aug 2 - so newest first puts "huge" first
-// here for date reasons, not view-count reasons.
-check("YouTube sorts newest first", by.youtube.results.map((r) => r.title), ["huge", "small"]);
+// "huge" is the OLDER video (Aug 1 vs Aug 5), so it can only lead if we are
+// sorting by views rather than date.
+check("YouTube sorts by views, not date", by.youtube.results.map((r) => r.title), ["huge", "small"]);
 check("YouTube exposes view/like/comment stats", by.youtube.results[0].stats[0].label, "views");
 check("GitHub exposes star counts", by.github.results[0].stats[0], { label: "stars", value: 5 });
 

@@ -42,3 +42,9 @@ next-env.d.ts
 
 # ...but the key template SHOULD be committed
 !.env.local.example
+
+# Cloud credentials - never commit these
+gcpConfig.json
+*service-account*.json
+*credentials*.json
+gcp-*.json
