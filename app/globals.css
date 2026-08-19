@@ -719,3 +719,149 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   Intent categories — optional, never a gate
+   ============================================================ */
+.cats {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.cats::-webkit-scrollbar {
+  display: none;
+}
+
+.app[data-working="false"] .cats {
+  margin: 16px auto 0;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.cat {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 0.83rem;
+  font-weight: 520;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+
+.cat:hover:not([data-active="true"]) {
+  color: var(--ink-2);
+}
+
+.cat[data-active="true"] {
+  color: var(--ink);
+  font-weight: 580;
+  background: var(--surface);
+  box-shadow: var(--sh-1);
+}
+
+@media (max-width: 720px) {
+  .app[data-working="true"] .cats {
+    display: none;
+  }
+}
+
+/* ============================================================
+   Landing — ambient depth + what the app actually searches
+   ============================================================ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(680px 380px at 22% -6%, rgba(139, 133, 245, 0.16), transparent 68%),
+    radial-gradient(560px 340px at 82% 2%, rgba(226, 72, 153, 0.10), transparent 66%),
+    radial-gradient(700px 400px at 50% 108%, rgba(56, 189, 168, 0.07), transparent 70%);
+}
+
+.app > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Landing headline carries the weight, so give it a gradient and real size. */
+.app[data-working="false"] .brand h1 {
+  background: linear-gradient(150deg, var(--ink) 24%, #a9a9c4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.app[data-working="false"] .tagline {
+  max-width: 480px;
+  margin: 0 auto;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 10px 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--sh-1);
+}
+
+.sources li svg {
+  flex-shrink: 0;
+  color: var(--tint);
+}
+
+.sources li div {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.sources strong {
+  font-size: 0.845rem;
+  font-weight: 580;
+  color: var(--ink);
+}
+
+.sources span {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+@media (max-width: 560px) {
+  .sources {
+    gap: 7px;
+  }
+  .sources li {
+    padding: 8px 13px 8px 11px;
+  }
+  .sources span {
+    display: none;
+  }
+}

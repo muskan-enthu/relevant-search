@@ -12,6 +12,20 @@ const TINT = {
   github: "#7c5cd6",
 };
 
+/**
+ * Optional intent filter. Never a gate - "Everything" is the default and the
+ * app works exactly as before if it is ignored.
+ *
+ * Each category has to actually change something or it is decoration: these
+ * steer the AI suggestions AND which channel you land on.
+ */
+const CATEGORIES = [
+  { id: "", label: "Everything", lands: null },
+  { id: "code", label: "Code", lands: "github" },
+  { id: "discussion", label: "Discussion", lands: "hackernews" },
+  { id: "learn", label: "Learn", lands: "youtube" },
+];
+
 /* Shown only until the user has a search history of their own. */
 const EXAMPLES = [
   "next.js updates",
@@ -30,6 +44,7 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState([]);
   const [sugOpen, setSugOpen] = useState(false);
   const [sugIndex, setSugIndex] = useState(-1);
+  const [category, setCategory] = useState("");
 
   // Guards against a slow early request overwriting a newer one's suggestions.
   const sugToken = useRef(0);
@@ -67,7 +82,10 @@ export default function Home() {
     const token = ++sugToken.current;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/suggest?q=${encodeURIComponent(text)}`);
+        const res = await fetch(
+          `/api/suggest?q=${encodeURIComponent(text)}` +
+            (category ? `&category=${category}` : "")
+        );
         const json = await res.json();
         if (token === sugToken.current) {
           setSuggestions(json.suggestions || []);
@@ -79,7 +97,7 @@ export default function Home() {
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [query, sugOpen]);
+  }, [query, sugOpen, category]);
 
   function pickSuggestion(text) {
     sugToken.current++; // invalidate any in-flight request
@@ -138,8 +156,12 @@ export default function Home() {
     } catch {}
   }
 
-  async function run(q) {
+  // `cat` is passed explicitly rather than read from state: setCategory is
+  // async, so a search fired from the category buttons would otherwise run
+  // with the previous category and land on the wrong tab.
+  async function run(q, cat) {
     const text = (q ?? query).trim();
+    const useCategory = cat ?? category;
     if (!text || loading) return;
 
     setQuery(text);
@@ -159,7 +181,13 @@ export default function Home() {
       // A channel with no credentials is hidden entirely rather than shown as a
       // permanently empty tab, so never land on one.
       const shown = json.channels.filter((c) => !c.unconfigured);
-      const firstFull = shown.find((c) => c.results.length > 0) || shown[0];
+
+      // The chosen category decides which channel leads, but only if that
+      // channel actually returned something.
+      const prefer = CATEGORIES.find((c) => c.id === useCategory)?.lands;
+      const preferred = prefer && shown.find((c) => c.id === prefer && c.results.length);
+
+      const firstFull = preferred || shown.find((c) => c.results.length > 0) || shown[0];
       setTab(firstFull ? firstFull.id : "hackernews");
     } catch (err) {
       setError(err.message);
@@ -186,10 +214,29 @@ export default function Home() {
           <div>
             <h1>Pulse</h1>
             <p className="tagline">
-              One query, ranked by what people are actually engaging with.
+              Search Hacker News, YouTube and GitHub at once &mdash; ranked by
+              what people actually engaged with, not by SEO.
             </p>
           </div>
         </div>
+
+        {!working && (
+          <ul className="sources">
+            {[
+              { id: "hackernews", label: "Hacker News", note: "points & comments" },
+              { id: "youtube", label: "YouTube", note: "views & likes" },
+              { id: "github", label: "GitHub", note: "stars & forks" },
+            ].map((s) => (
+              <li key={s.id} style={{ "--tint": TINT[s.id] }}>
+                <ChannelIcon id={s.id} />
+                <div>
+                  <strong>{s.label}</strong>
+                  <span>{s.note}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <form
         className="searchbar"
@@ -252,6 +299,22 @@ export default function Home() {
           </ul>
         )}
         </form>
+
+        <div className="cats" role="group" aria-label="Search focus">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.id || "all"}
+              className="cat"
+              data-active={c.id === category}
+              onClick={() => {
+                setCategory(c.id);
+                if (query.trim() && (data || error)) run(query, c.id);
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
       </header>
 
       {!working && (
