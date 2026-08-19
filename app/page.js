@@ -299,7 +299,15 @@ export default function Home() {
           <div className="results">
             {active?.results.length ? (
               active.results.map((r, i) => (
-                <Card key={r.url + i} result={r} tint={tint} index={i} />
+                <Card
+                  key={r.url + i}
+                  result={r}
+                  tint={tint}
+                  index={i}
+                  // Only channels ranked by date show one - on an
+                  // engagement-ranked tab the age is noise, not signal.
+                  showDate={active.ranked === "date"}
+                />
               ))
             ) : (
               <div className="empty">
@@ -332,7 +340,7 @@ export default function Home() {
 
 /* ------------------------------------------------------------------ */
 
-function Card({ result, tint, index }) {
+function Card({ result, tint, index, showDate }) {
   let host = result.url;
   try {
     host = new URL(result.url).host.replace(/^www\./, "");
@@ -357,7 +365,9 @@ function Card({ result, tint, index }) {
           }}
         />
         <span className="host">{result.author || host}</span>
-        {ago(result.date) && <span className="when">{ago(result.date)}</span>}
+        {showDate && ago(result.date) && (
+          <span className="when">{ago(result.date)}</span>
+        )}
       </div>
       <h3>{result.title}</h3>
       {result.snippet && <p>{result.snippet}</p>}
