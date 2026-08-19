@@ -33,6 +33,27 @@ export default function Home() {
 
   // Guards against a slow early request overwriting a newer one's suggestions.
   const sugToken = useRef(0);
+  const formRef = useRef(null);
+
+  // Close the dropdown on any click outside the search bar. A blur handler
+  // cannot do this job: the list preventDefaults mousedown to keep focus in the
+  // input, so blur never fires when clicking the list itself.
+  useEffect(() => {
+    if (!sugOpen) return;
+
+    function onPointerDown(e) {
+      if (formRef.current && !formRef.current.contains(e.target)) {
+        setSugOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [sugOpen]);
 
   // Debounced: the user is mid-word most of the time, and every keystroke would
   // otherwise be a Groq call against an 8000 tok/min budget.
@@ -134,7 +155,11 @@ export default function Home() {
       setData(json);
       // Only remember searches that actually returned something.
       if (json.meta.totalResults > 0) remember(text);
-      const firstFull = json.channels.find((c) => c.results.length > 0);
+
+      // A channel with no credentials is hidden entirely rather than shown as a
+      // permanently empty tab, so never land on one.
+      const shown = json.channels.filter((c) => !c.unconfigured);
+      const firstFull = shown.find((c) => c.results.length > 0) || shown[0];
       setTab(firstFull ? firstFull.id : "hackernews");
     } catch (err) {
       setError(err.message);
@@ -143,7 +168,10 @@ export default function Home() {
     }
   }
 
-  const active = data?.channels.find((c) => c.id === tab);
+  // Unconfigured channels are hidden: the code stays wired up, so adding the
+  // key later makes the tab reappear with no other change.
+  const visible = data?.channels.filter((c) => !c.unconfigured) ?? [];
+  const active = visible.find((c) => c.id === tab);
   const tint = TINT[tab] || undefined;
 
   return (
@@ -151,12 +179,13 @@ export default function Home() {
       <header className="hero">
         <h1>Searching..</h1>
         <p className="tagline">
-          What Hacker News, YouTube and GitHub are talking about right now.
+          One query, ranked by what people are actually engaging with.
         </p>
       </header>
 
       <form
         className="searchbar"
+        ref={formRef}
         onSubmit={(e) => {
           e.preventDefault();
           setSugOpen(false);
@@ -251,7 +280,7 @@ export default function Home() {
       {data && (
         <>
           <nav className="tabs">
-            {data.channels.map((c) => (
+            {visible.map((c) => (
               <button
                 key={c.id}
                 className="tab"
@@ -275,15 +304,7 @@ export default function Home() {
             ) : (
               <div className="empty">
                 <Icon.Empty />
-                {active?.unconfigured ? (
-                  <>
-                    <strong>{active.label} is not set up</strong>
-                    <span>
-                      Add a free YOUTUBE_API_KEY to .env.local and restart to enable
-                      this channel.
-                    </span>
-                  </>
-                ) : active?.error ? (
+                {active?.error ? (
                   <>
                     <strong>{active.label} could not be searched</strong>
                     <span>{active.error}</span>

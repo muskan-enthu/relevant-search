@@ -133,6 +133,9 @@ h1 {
    ============================================================ */
 .searchbar {
   position: relative;
+  /* Must sit above the result cards: their rise/hover transforms create their
+     own stacking contexts, which would otherwise paint over the dropdown. */
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 10px;
