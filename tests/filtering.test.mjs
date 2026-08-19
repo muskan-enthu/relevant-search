@@ -76,19 +76,19 @@ const channels = await searchAllChannels("x");
 const by = Object.fromEntries(channels.map((c) => [c.id, c]));
 
 check("channels declare their ranking basis", Object.fromEntries(channels.map((c) => [c.id, c.ranked])), {
-  hackernews: "date",
+  hackernews: "engagement",
   youtube: "date",
   github: "engagement",
 });
 
-// Newest first, regardless of how many points a story has.
-// Fixture dates: quiet=Aug 1, front page=Aug 5, Ask HN=Aug 6.
-check("HN sorts newest first, not by points", by.hackernews.results.map((r) => r.title), [
-  "Ask HN: no url",
+// Most points first, regardless of date. Fixture points: quiet=12, front
+// page=940, Ask HN=40.
+check("HN sorts by points, not date", by.hackernews.results.map((r) => r.title), [
   "front page story",
+  "Ask HN: no url",
   "quiet story",
 ]);
-check("HN still exposes points and comments", by.hackernews.results[1].stats, [
+check("HN exposes points and comments", by.hackernews.results[0].stats, [
   { label: "points", value: 940 },
   { label: "comments", value: 512 },
 ]);

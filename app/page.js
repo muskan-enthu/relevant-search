@@ -357,7 +357,7 @@ function Card({ result, tint, index }) {
           }}
         />
         <span className="host">{result.author || host}</span>
-        {result.date && <span className="when">{ago(result.date)}</span>}
+        {ago(result.date) && <span className="when">{ago(result.date)}</span>}
       </div>
       <h3>{result.title}</h3>
       {result.snippet && <p>{result.snippet}</p>}
@@ -405,14 +405,17 @@ function compact(n) {
   return (n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0) + "M";
 }
 
+/**
+ * Relative age, months at most. Anything older than a year returns "" and the
+ * chip is skipped entirely rather than showing a year count.
+ */
 function ago(iso) {
   const days = Math.floor((Date.now() - new Date(iso)) / 86400000);
-  if (Number.isNaN(days)) return "";
+  if (Number.isNaN(days) || days >= 365) return "";
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 30) return `${days}d ago`;
-  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
+  return `${Math.floor(days / 30)}mo ago`;
 }
 
 /* Inline SVGs — no icon library, no network request. */
