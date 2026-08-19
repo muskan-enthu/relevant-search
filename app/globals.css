@@ -88,16 +88,76 @@ button {
   padding: 40px 24px 0;
 }
 
-/* Working: compact sticky bar, brand and search side by side */
+/* Working: three-part sticky bar - brand pinned left, search truly centred,
+   categories pinned right. Letting the search sit wherever flex put it read as
+   unbalanced and unfinished. */
 .app[data-working="true"] .topbar {
   position: sticky;
   top: 0;
   z-index: 40;
   height: var(--topbar-h);
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: saturate(1.6) blur(12px);
-  -webkit-backdrop-filter: saturate(1.6) blur(12px);
+  padding: 0 20px;
+  gap: 16px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: saturate(1.8) blur(16px);
+  -webkit-backdrop-filter: saturate(1.8) blur(16px);
   border-bottom: 1px solid var(--line);
+}
+
+/* A translucent bar with no blur just looks muddy - results show through it as
+   smeared shapes. Where backdrop-filter is unavailable, go fully opaque. */
+@supports not (backdrop-filter: blur(1px)) {
+  .app[data-working="true"] .topbar {
+    background: var(--bg);
+  }
+}
+
+/* Hairline of colour along the bottom edge - stops the bar reading as a plain
+   grey rule. */
+.app[data-working="true"] .topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 45%, transparent) 22%,
+    color-mix(in srgb, #e24899 40%, transparent) 58%,
+    transparent
+  );
+  opacity: 0.7;
+}
+
+/* Equal flex on both flanks keeps the search optically centred regardless of
+   how wide the brand or the category group happens to be. Basis must be 0:
+   with `auto` each side claims its own content width and the wider one shoves
+   the search sideways. */
+.app[data-working="true"] .brand,
+.app[data-working="true"] .cats {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.app[data-working="true"] .cats {
+  justify-content: flex-end;
+  background: none;
+  border: 0;
+  padding: 0;
+  gap: 2px;
+}
+
+.app[data-working="true"] .cat {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.app[data-working="true"] .cat[data-active="true"] {
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--ink);
 }
 
 /* ---------------- brand ---------------- */
@@ -112,8 +172,8 @@ button {
 .brand .mark {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   color: #fff;
   background: linear-gradient(140deg, var(--accent), #9333ea);
@@ -181,10 +241,17 @@ button {
 }
 
 .app[data-working="true"] .searchbar {
-  max-width: 520px;
-  padding: 3px 3px 3px 16px;
-  box-shadow: none;
-  background: var(--surface-2);
+  flex: 0 1 460px;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 3px 3px 3px 15px;
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--sh-1);
+}
+
+.app[data-working="true"] .searchbar:hover {
+  border-color: var(--line-2);
 }
 
 .searchbar:focus-within {
@@ -690,7 +757,11 @@ button {
 @media (max-width: 720px) {
   .app[data-working="true"] .topbar {
     padding: 0 14px;
-    gap: 12px;
+    gap: 10px;
+  }
+  .app[data-working="true"] .searchbar {
+    flex: 1 1 auto;
+    max-width: none;
   }
   .app[data-working="true"] .brand h1 {
     display: none;
